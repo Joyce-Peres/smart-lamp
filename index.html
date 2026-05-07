@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <link rel="manifest" href="manifest.json">
+  <script>
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Purpurine Smart Lamp</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js">
+  </script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap%22
+    rel="stylesheet">
+ 
+  <style>
+    /* ===== VARIÁVEIS GLOBAIS (modo claro padrão) ===== */
+    :root {
+      --sky-blue: #b8d4e8;
+      --cloud: #eaf4f8;
+      --lavender: #c8bdd8;
+      --lavender2: #d9cee5;
+      --sage: #a8c8b8;
+      --sage2: #b5d0c0;
+      --peach: #f0d0c0;
+      --peach2: #f5dcd0;
+      --cream: #fdf8f2;
+      --bg-start: #e8f2f8;
+      --bg-mid: #f9f4ed;
+      --bg-end: #f5efe6;
+      --card-bg: rgba(255, 255, 250, 0.7);
+      --border: rgba(180, 195, 200, 0.35);
+      --text: #3d3848;
+      --muted: #8a8398;
+      --online: #8bba98;
+      --offline: #c4a898;
+      --shadow-soft: rgba(160, 180, 190, 0.2);
+      --btn-bg: rgba(200, 195, 210, 0.12);
+      --btn-hover-bg: rgba(180, 200, 215, 0.15);
+      --active-bg: linear-gradient(135deg, rgba(190, 210, 225, 0.35), rgba(210, 195, 220, 0.2));
+      --active-border: #b0c8d8;
+      --active-color: #5a7a8a;
+      --range-track: #c0d0dc;
+      --range-thumb: linear-gradient(135deg, #d4dce8, #c8d8d0);
+      --bar-bg: rgba(200, 195, 205, 0.18);
+      --bar-fill: linear-gradient(90deg, #c0d0d8, #b5c8c0);
+      --header-gradient: linear-gradient(100deg, #8a9ab8, #b0a0c0);
+      --num-gradient: linear-gradient(135deg, #9ab0c0, #b5a5c5);
+      --lum-gradient: linear-gradient(135deg, #a0c0b8, #b5a8c8);
+      --shimmer: linear-gradient(135deg, #b0c5d5, #c8b8d5, #b0c5d5);
+      --badge-off-bg: rgba(200, 170, 150, 0.1);
+      --badge-off-border: rgba(200, 170, 150, 0.25);
+      --badge-on-bg: rgba(130, 180, 150, 0.1);
+      --badge-on-border: rgba(130, 180, 150, 0.3);
+    }
+ 
+    /* ===== MODO ESCURO COM VERDE ÁGUA E ROXO ===== */
+    body.dark-mode {
+      --sky-blue: #2d5a6e;
+      --cloud: #1e2a32;
+      --lavender: #6a4e8a;
+      --lavender2: #7b5f9e;
+      --sage: #3b6b5e;
+      --sage2: #4e8070;
+      --peach: #5e4042;
+      --peach2: #6e5052;
+      --cream: #12141c;
+      --bg-start: #0b1a1f;
+      --bg-mid: #0f2128;
+      --bg-end: #0c1c22;
+      --card-bg: rgba(15, 25, 30, 0.8);
+      --border: rgba(45, 90, 80, 0.45);
+      --text: #d8e6e8;
+      --muted: #8ea2a8;
+      --online: #5fbf8f;
+      --offline: #b88080;
+      --shadow-soft: rgba(0, 0, 0, 0.35);
+      --btn-bg: rgba(40, 50, 55, 0.35);
+      --btn-hover-bg: rgba(55, 70, 75, 0.4);
+      --active-bg: linear-gradient(135deg, rgba(45, 110, 100, 0.4), rgba(90, 50, 100, 0.3));
+      --active-border: #4b7a6e;
+      --active-color: #9edbce;
+      --range-track: #2a4a4a;
+      --range-thumb: linear-gradient(135deg, #4a6a6a, #6a4a7a);
+      --bar-bg: rgba(60, 80, 75, 0.25);
+      --bar-fill: linear-gradient(90deg, #4a8a7a, #7a5a9a);
+      --header-gradient: linear-gradient(100deg, #8bc0c0, #b898d0);
+      --num-gradient: linear-gradient(135deg, #5ea0a0, #9060b8);
+      --lum-gradient: linear-gradient(135deg, #5ea090, #9068b8);
+      --shimmer: linear-gradient(135deg, #5ea0a0, #9060b8, #5ea0a0);
+      --badge-off-bg: rgba(160, 110, 110, 0.2);
+      --badge-off-border: rgba(160, 110, 110, 0.35);
+      --badge-on-bg: rgba(80, 150, 110, 0.2);
+      --badge-on-border: rgba(80, 150, 110, 0.4);
+    }
+ 
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+ 
+    body {
+      min-height: 100vh;
+      background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-mid) 35%, var(--bg-end) 100%);
+      color: var(--text);
+      font-family: 'Quicksand', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 20px 56px;
+      overflow-x: hidden;
+      position: relative;
+      transition: background 0.5s ease, color 0.3s ease;
+    }
+ 
+    /* ── Botões fixos no canto superior direito ── */
+    .theme-toggle, .info-toggle, .instructions-toggle {
+      position: fixed;
+      right: 20px;
+      z-index: 10;
+      background: var(--card-bg);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 20px;
+      box-shadow: 0 2px 12px var(--shadow-soft);
+      transition: all 0.3s ease;
+      color: var(--text);
+    }
+    .theme-toggle {
+      top: 20px;
+    }
+    .info-toggle {
+      top: 74px; /* 20 + 44 + 10 */
+    }
+    .instructions-toggle {
+      top: 128px; /* 74 + 44 + 10 */
+    }
+    .theme-toggle:hover, .info-toggle:hover, .instructions-toggle:hover {
+      transform: scale(1.08);
+      box-shadow: 0 4px 18px var(--shadow-soft);
+    }
+ 
+    /* ── POP-UP GENÉRICO (usado para info e instruções) ── */
+    .popup-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.3);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.3s ease;
+    }
+    .popup-overlay.hidden {
+      display: none;
+    }
+    .popup-box {
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 28px 24px 24px;
+      max-width: 360px;
+      width: 90%;
+      box-shadow: 0 8px 32px var(--shadow-soft);
+      text-align: center;
+      position: relative;
+      animation: scaleIn 0.3s ease;
+    }
+    .popup-box .close-btn {
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--muted);
+      transition: color 0.2s;
+      line-height: 1;
+    }
+    .popup-box .close-btn:hover {
+      color: var(--text);
+    }
+    .popup-box h3 {
+      font-family: 'Lora', serif;
+      font-size: 20px;
+      margin-bottom: 14px;
+      background: var(--header-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .popup-box p, .popup-box li {
+      font-family: 'Quicksand', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text);
+      margin-bottom: 6px;
+      text-align: left;
+    }
+    .popup-box ul {
+      list-style: none;
+      padding: 0;
+      margin: 12px 0;
+    }
+    .popup-box ul li {
+      position: relative;
+      padding-left: 24px;
+      margin-bottom: 10px;
+    }
+    .popup-box ul li::before {
+      content: "✨";
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-size: 14px;
+    }
+    .popup-box .signature {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 20px;
+      text-align: center;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes scaleIn {
+      from { transform: scale(0.9); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+ 
+    /* ── FUNDO (SVG blobs) ── */
+    .bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .bg-canvas svg {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+    }
+ 
+    .bg-canvas::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+      opacity: 0.04;
+      pointer-events: none;
+    }
+ 
+    /* Animações */
+    @keyframes drift1 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(30px, -20px) scale(1.06); }
+    }
+    @keyframes drift2 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(-25px, 30px) scale(1.04); }
+    }
+    @keyframes drift3 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(15px, 20px) scale(1.08); }
+    }
+    @keyframes drift4 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(-18px, -15px) scale(1.05); }
+    }
+    @keyframes drift5 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(22px, 10px) scale(1.03); }
+    }
+    @keyframes drift6 {
+      0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.25; }
+      50% { transform: translate(-10px, -25px) scale(1.07); opacity: 0.45; }
+    }
+ 
+    .b1 { animation: drift1 22s ease-in-out infinite; transform-origin: center; }
+    .b2 { animation: drift2 26s ease-in-out infinite; transform-origin: center; }
+    .b3 { animation: drift3 20s ease-in-out infinite; transform-origin: center; }
+    .b4 { animation: drift4 28s ease-in-out infinite; transform-origin: center; }
+    .b5 { animation: drift5 24s ease-in-out infinite; transform-origin: center; }
+    .b6 { animation: drift6 18s ease-in-out infinite; transform-origin: center; }
+ 
+    /* ── WRAPPER ── */
+    .wrapper {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 390px;
+      display: flex; flex-direction: column; gap: 13px;
+      animation: up .7s ease both;
+    }
+    @keyframes up { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+ 
+    .header { display:flex; align-items:center; gap:13px; padding-bottom:8px; }
+    .logo {
+      width:48px; height:48px; border-radius:18px; flex-shrink:0;
+      background: linear-gradient(135deg, var(--sky-blue), var(--lavender));
+      display:flex; align-items:center; justify-content:center; font-size:22px;
+      box-shadow: 0 0 28px rgba(180, 200, 220, 0.5), 0 0 8px rgba(200, 180, 210, 0.25);
+      position:relative; overflow:hidden;
+    }
+    .logo::after {
+      content:''; position:absolute; inset:0;
+      background:linear-gradient(135deg, rgba(255,255,255,.25), transparent 60%);
+    }
+    .logo span { position: relative; z-index: 1; }
+    .title-block { flex:1; }
+    .title-block h1 {
+      font-family: 'Lora', 'Quicksand', serif;
+      font-weight: 600; font-size: 19px; letter-spacing:-.3px;
+      background: var(--header-gradient);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+    .title-block p { font-size:11px; color: var(--muted); margin-top:1px; font-weight:500; }
+ 
+    .badge {
+      display:flex; align-items:center; gap:5px;
+      padding:4px 10px 4px 7px; border-radius:99px; font-size:11px; font-weight:600;
+      background: var(--badge-off-bg); border:1px solid var(--badge-off-border); color: var(--offline);
+      transition:all .5s; flex-shrink:0;
+    }
+    .badge.on {
+      background: var(--badge-on-bg); border-color: var(--badge-on-border); color: var(--online);
+    }
+    .badge .dot { width:6px; height:6px; border-radius:50%; background: var(--offline); transition:.5s; }
+    .badge.on .dot { background: var(--online); box-shadow:0 0 8px rgba(130, 180, 150, 0.6); }
+ 
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 18px 18px 20px;
+      position: relative; overflow: hidden;
+      box-shadow: 0 2px 20px var(--shadow-soft);
+    }
+    .card::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:1px;
+      background: linear-gradient(90deg, transparent, rgba(180, 200, 210, 0.5), rgba(210, 195, 215, 0.35), transparent);
+    }
+ 
+    .lbl { font-size:10px; font-weight:600; letter-spacing:1.6px; text-transform:uppercase; color: var(--muted); margin-bottom:14px; }
+ 
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+    .mode-btn {
+      background: var(--btn-bg); border:1px solid var(--border); border-radius:18px;
+      padding:13px 8px; color: var(--muted); font-family:'Quicksand',sans-serif;
+      font-size:13px; font-weight:600; cursor:pointer; transition:all .3s;
+      display:flex; flex-direction:column; align-items:center; gap:7px;
+    }
+    .mode-btn .mi { font-size:22px; filter:grayscale(50%); transition:.3s; }
+    .mode-btn:hover { border-color: rgba(170, 190, 200, 0.55); color: var(--text); background: var(--btn-hover-bg); }
+    .mode-btn:hover .mi { filter:grayscale(0); }
+    .mode-btn.active {
+      background: var(--active-bg); border-color: var(--active-border); color: var(--active-color);
+      box-shadow: inset 0 0 20px rgba(180, 200, 220, 0.1), 0 0 18px rgba(170, 190, 210, 0.2);
+    }
+    .mode-btn.active .mi { filter:grayscale(0); }
+ 
+    .color-wrap { position: relative; width: 100%; }
+    .color-swatch {
+      width: 100%; height: 76px; border-radius: 18px;
+      border: 2px solid var(--border); cursor: pointer;
+      transition: box-shadow .4s, border-color .4s;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; background: var(--lavender);
+    }
+    .color-swatch-label {
+      font-size: 11px; font-weight: 600; letter-spacing: .8px;
+      text-transform: uppercase; color: rgba(255,255,255,.6);
+      pointer-events: none; user-select: none;
+      text-shadow: 0 0 4px rgba(0,0,0,0.2);
+    }
+    .color-wrap input[type="color"] {
+      position: absolute; top:0; left:0; width:100%; height:100%;
+      opacity:0; cursor:pointer; border:none; padding:0;
+    }
+ 
+    .color-meta { display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
+    .hex-lbl { font-size:10px; color: var(--muted); font-weight:600; letter-spacing:.5px; }
+    .hex-val { font-family:'Quicksand',monospace; font-size:16px; font-weight:700; color: var(--text); letter-spacing:1px; margin-top:2px; }
+    .rgb-val { font-family:'Quicksand',monospace; font-size:10px; color: var(--muted); text-align:right; margin-top:2px; font-weight:500; }
+ 
+    .int-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:18px; }
+    .int-num {
+      font-family:'Quicksand',sans-serif; font-size:40px; font-weight:700; line-height:1;
+      background: var(--num-gradient);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+    .int-unit { font-size:13px; color: var(--muted); margin-top:5px; font-weight:500; }
+    .int-icon { font-size:32px; }
+ 
+    input[type="range"] {
+      -webkit-appearance:none; appearance:none;
+      width:100%; height:6px; border-radius:99px; outline:none; cursor:pointer;
+      background: linear-gradient(to right, var(--range-track) 0%, var(--range-track) var(--pct,50%), rgba(200,195,205,.2) var(--pct,50%));
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance:none; appearance:none;
+      width:22px; height:22px; border-radius:50%; cursor:grab;
+      background: var(--range-thumb);
+      border:2px solid var(--cream);
+      box-shadow:0 0 18px rgba(160,185,200,.55), 0 0 6px rgba(180,200,190,.3);
+      transition:box-shadow .3s, transform .2s;
+    }
+    input[type="range"]::-webkit-slider-thumb:active { transform:scale(1.2); cursor:grabbing; box-shadow:0 0 28px rgba(160,185,200,.75),0 0 14px rgba(180,200,190,.5); }
+    input[type="range"]::-moz-range-thumb {
+      width:22px; height:22px; border-radius:50%; cursor:grab;
+      background: var(--range-thumb);
+      border:2px solid var(--cream); box-shadow:0 0 18px rgba(160,185,200,.55);
+    }
+    .range-labels { display:flex; justify-content:space-between; font-size:10px; color: var(--muted); margin-top:8px; font-weight:600; letter-spacing:.5px; }
+ 
+    .lum-row { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:14px; }
+    .lum-big {
+      font-family:'Quicksand',sans-serif; font-size:40px; font-weight:700; line-height:1;
+      background: var(--lum-gradient);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+    .lum-pct { font-size:14px; color: var(--muted); margin-bottom:5px; font-weight:500; }
+    .bar-track { height:6px; border-radius:99px; background: var(--bar-bg); border:1px solid var(--border); overflow:hidden; }
+    .bar-fill {
+      height:100%; width:0%; border-radius:99px;
+      background: var(--bar-fill);
+      box-shadow:0 0 12px rgba(170,200,190,.4);
+      transition:width .7s cubic-bezier(.4,0,.2,1);
+    }
+ 
+    .footer { text-align:center; font-size:10px; color:rgba(140,130,150,.45); letter-spacing:1px; text-transform:uppercase; padding-top:4px; font-weight:500; }
+ 
+    .glitter {
+      background: var(--shimmer);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: shimmer 4.5s ease-in-out infinite;
+    }
+ 
+    @keyframes shimmer {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
+    }
+  </style>
+</head>
+<body class="light-mode">
+ 
+  <!-- Botões fixos -->
+  <div class="theme-toggle" id="themeToggle" title="Alternar tema">🌙</div>
+  <div class="info-toggle" id="infoToggle" title="Sobre acessibilidade">ℹ️</div>
+  <div class="instructions-toggle" id="instructionsToggle" title="Instruções de uso">📖</div>
+ 
+  <!-- POP-UP DE INFORMAÇÃO (acessibilidade) -->
+  <div class="popup-overlay hidden" id="infoOverlay">
+    <div class="popup-box">
+      <button class="close-btn" id="closeInfoPopup">&times;</button>
+      <h3>✨ Nosso propósito</h3>
+      <p>
+        A acessibilidade é a ponte que conecta todas as pessoas ao mundo digital.
+        Acreditamos que a tecnologia deve acolher, incluir e transformar vidas,
+        garantindo que ninguém fique para trás.
+        Cada detalhe deste projeto foi pensado para que a experiência seja suave,
+        agradável e acessível a todos.
+      </p>
+      <div class="signature">— Purpurine · Glitter Computer & CO.</div>
+    </div>
+  </div>
+ 
+  <!-- POP-UP DE INSTRUÇÕES DE USO -->
+  <div class="popup-overlay hidden" id="instructionsOverlay">
+    <div class="popup-box">
+      <button class="close-btn" id="closeInstructionsPopup">&times;</button>
+      <h3>📖 Como usar sua Purpurine</h3>
+      <ul>
+        <li><strong>Modos de operação:</strong> toque em um dos modos para alterar o comportamento da lâmpada instantaneamente.</li>
+        <li><strong>Cor personalizada:</strong> no modo "Personalizado", clique sobre o quadro colorido ou use o seletor para escolher a cor exata.</li>
+        <li><strong>Intensidade:</strong> arraste o controle deslizante para ajustar o brilho de 0% a 100%.</li>
+        <li><strong>Sensor de luminosidade:</strong> o valor exibido mostra a luz ambiente captada pelo sensor, atualizando em tempo real.</li>
+        <li><strong>Alternar tema:</strong> o botão 🌙/☀️ no canto superior troca entre modo claro e escuro.</li>
+        <li><strong>Acessibilidade:</strong> todos os elementos foram pensados para oferecer contraste, fontes suaves e navegação intuitiva.</li>
+      </ul>
+      <p>Divirta-se criando ambientes acolhedores e personalizados!</p>
+      <div class="signature">— Equipe Purpurine</div>
+    </div>
+  </div>
+ 
+  <!-- FUNDO (SVG com cores variáveis) -->
+  <div class="bg-canvas">
+    <svg viewBox="0 0 390 844" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="blur1"><feGaussianBlur stdDeviation="60" /></filter>
+        <filter id="blur2"><feGaussianBlur stdDeviation="75" /></filter>
+        <filter id="blur3"><feGaussianBlur stdDeviation="45" /></filter>
+        <filter id="blur4"><feGaussianBlur stdDeviation="30" /></filter>
+      </defs>
+      <ellipse class="b1" cx="300" cy="50" rx="200" ry="140" fill="var(--sky-blue)" opacity="0.5" filter="url(#blur2)" />
+      <ellipse class="b2" cx="60" cy="90" rx="160" ry="110" fill="var(--lavender)" opacity="0.4" filter="url(#blur2)" />
+      <ellipse class="b3" cx="180" cy="30" rx="140" ry="80" fill="var(--cloud)" opacity="0.45" filter="url(#blur1)" />
+      <ellipse class="b6" cx="320" cy="200" rx="70" ry="50" fill="var(--peach)" opacity="0.35" filter="url(#blur3)" />
+      <ellipse class="b5" cx="100" cy="350" rx="55" ry="40" fill="var(--peach2)" opacity="0.25" filter="url(#blur4)" />
+      <ellipse class="b4" cx="200" cy="820" rx="280" ry="200" fill="var(--sage)" opacity="0.28" filter="url(#blur1)" />
+      <ellipse class="b2" cx="350" cy="800" rx="220" ry="170" fill="var(--sage2)" opacity="0.22" filter="url(#blur1)" />
+      <ellipse class="b1" cx="40" cy="810" rx="180" ry="150" fill="var(--sage)" opacity="0.25" filter="url(#blur2)" />
+      <ellipse class="b3" cx="200" cy="600" rx="160" ry="80" fill="var(--lavender2)" opacity="0.2" filter="url(#blur1)" />
+      <ellipse class="b5" cx="250" cy="420" rx="120" ry="70" fill="var(--cloud)" opacity="0.3" filter="url(#blur2)" />
+      <ellipse class="b6" cx="60" cy="500" rx="90" ry="55" fill="var(--peach)" opacity="0.28" filter="url(#blur3)" />
+      <ellipse class="b4" cx="140" cy="120" rx="80" ry="45" fill="var(--sky-blue)" opacity="0.35" filter="url(#blur4)" />
+      <ellipse class="b1" cx="360" cy="140" rx="60" ry="35" fill="var(--cloud)" opacity="0.3" filter="url(#blur4)" />
+    </svg>
+  </div>
+ 
+  <div class="wrapper">
+    <div class="header">
+      <div class="logo"><span>✨</span></div>
+      <div class="title-block">
+        <h1>Purpurine<span class="glitter"> ✨</span> Lamp</h1>
+        <p>by Glitter Computer & CO. · Smart Home Control</p>
+      </div>
+      <div class="badge" id="badge"><span class="dot"></span> off</div>
+    </div>
+ 
+    <div class="card">
+      <div class="lbl">Modos de operação</div>
+      <div class="grid2">
+        <button class="mode-btn" data-modo="1"><span class="mi">🤖</span>Automático</button>
+        <button class="mode-btn" data-modo="2"><span class="mi">🌙</span>Relaxar</button>
+        <button class="mode-btn" data-modo="3"><span class="mi">🎯</span>Foco</button>
+        <button class="mode-btn" data-modo="4"><span class="mi">🎨</span>Personalizado</button>
+        <button class="mode-btn" data-modo="5"><span class="mi">🪩</span>Balada</button>
+        <button class="mode-btn" data-modo="6"><span class="mi">💆</span>Alivio Sensorial</button>
+      </div>
+    </div>
+ 
+    <div class="card">
+      <div class="lbl">Cor personalizada</div>
+      <div class="color-wrap">
+        <div class="color-swatch" id="swatch">
+          <span class="color-swatch-label" id="swatchLabel">✨ toque para escolher</span>
+        </div>
+        <input type="color" id="cor" value="#d4c8de" tabindex="-1">
+      </div>
+      <div class="color-meta">
+        <div><div class="hex-lbl">HEX</div><div class="hex-val" id="hexVal">#D4C8DE</div></div>
+        <div><div class="hex-lbl" style="text-align:right">RGB</div><div class="rgb-val" id="rgbVal">212, 200, 222</div></div>
+      </div>
+    </div>
+ 
+    <div class="card">
+      <div class="lbl">Intensidade da luz</div>
+      <div class="int-top">
+        <div><div class="int-num" id="intNum">80</div><div class="int-unit">% de brilho</div></div>
+        <div class="int-icon" id="intIcon">🔆</div>
+      </div>
+      <input type="range" id="slider" min="0" max="100" value="80">
+      <div class="range-labels"><span>Apagado</span><span>Máximo</span></div>
+    </div>
+ 
+    <div class="card">
+      <div class="lbl">Luminosidade do sensor</div>
+      <div class="lum-row">
+        <div class="lum-big" id="luminosidade">--</div>
+        <div class="lum-pct">%</div>
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="lumBar"></div></div>
+    </div>
+ 
+    <div class="footer">Purpurine · by Glitter Computer & CO. · ✨</div>
+  </div>
+ 
+  <script>
+    const BROKER_URL = "ws://54.198.188.2:9001";
+    const TOPIC_CMD = "/TEF/lamp001/cmd";
+    const TOPIC_SENSOR = "/TEF/lamp001/attrs/l";
+ 
+    let client = null;
+    let currentMode = 4;
+ 
+    const badge = document.getElementById("badge");
+    const corInput = document.getElementById("cor");
+    const swatch = document.getElementById("swatch");
+    const swLabel = document.getElementById("swatchLabel");
+    const slider = document.getElementById("slider");
+    const intNum = document.getElementById("intNum");
+    const intIcon = document.getElementById("intIcon");
+    const luminosidadeEl = document.getElementById("luminosidade");
+    const lumBar = document.getElementById("lumBar");
+    const hexVal = document.getElementById("hexVal");
+    const rgbVal = document.getElementById("rgbVal");
+ 
+    const icons = ["🌑", "🌒", "🌓", "🌔", "🔆"];
+ 
+    function publishCommand(command) {
+      if (client && client.connected) {
+        client.publish(TOPIC_CMD, command);
+        return true;
+      }
+      return false;
+    }
+ 
+    function sendMode(modo) {
+      currentMode = modo;
+      publishCommand(`setMode|${modo}`);
+      document.querySelectorAll(".mode-btn").forEach(btn => {
+        btn.classList.toggle("active", parseInt(btn.dataset.modo) === modo);
+      });
+    }
+ 
+    function sendColor(hex) {
+      const r = parseInt(hex.substr(1,2),16), g = parseInt(hex.substr(3,2),16), b = parseInt(hex.substr(5,2),16);
+      publishCommand(`setRGB|${r},${g},${b}`);
+    }
+ 
+    function sendBrightness(val) { publishCommand(`setBrightness|${val}`); }
+ 
+    function applyColor(hex) {
+      swatch.style.background = hex;
+      swatch.style.boxShadow = `0 0 35px ${hex}66`;
+      swatch.style.borderColor = hex;
+      const r = parseInt(hex.substr(1,2),16), g = parseInt(hex.substr(3,2),16), b = parseInt(hex.substr(5,2),16);
+      const lum = (r*299 + g*587 + b*114)/1000;
+      swLabel.style.color = lum > 140 ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.65)";
+      swLabel.style.textShadow = lum > 140 ? "none" : "0 0 4px rgba(0,0,0,0.4)";
+      hexVal.innerText = hex.toUpperCase();
+      rgbVal.innerText = `${r}, ${g}, ${b}`;
+    }
+ 
+    function handleIntensity(val) {
+      const n = parseInt(val);
+      intNum.innerText = n;
+      slider.style.setProperty("--pct", n + "%");
+      intIcon.textContent = icons[Math.min(Math.ceil(n/25), 4)];
+      sendBrightness(n);
+    }
+ 
+    function updateSensorUI(value) {
+      const percent = Math.min(100, Math.max(0, parseInt(value) || 0));
+      luminosidadeEl.innerText = percent;
+      lumBar.style.width = percent + "%";
+    }
+ 
+    function updateConnectionStatus(connected) {
+      if (connected) {
+        badge.classList.add("on");
+        badge.innerHTML = '<span class="dot"></span> online';
+      } else {
+        badge.classList.remove("on");
+        badge.innerHTML = '<span class="dot"></span> off';
+      }
+    }
+ 
+    function connectMQTT() {
+      updateConnectionStatus(false);
+      if (client) { try { client.end(true); } catch(e) {} }
+      client = mqtt.connect(BROKER_URL, {
+        connectTimeout: 5000, keepalive: 60,
+        clientId: "purpurine_web_" + Math.random().toString(36).substr(2,8),
+        reconnectPeriod: 3000
+      });
+      client.on("connect", () => {
+        console.log("✅ Conectado!");
+        updateConnectionStatus(true);
+        client.subscribe(TOPIC_SENSOR);
+        setTimeout(() => {
+          sendMode(currentMode);
+          sendColor(corInput.value);
+          sendBrightness(slider.value);
+        }, 500);
+      });
+      client.on("message", (topic, msg) => {
+        if (topic === TOPIC_SENSOR) updateSensorUI(msg.toString());
+      });
+      client.on("error", () => updateConnectionStatus(false));
+      client.on("offline", () => updateConnectionStatus(false));
+    }
+ 
+    document.querySelectorAll(".mode-btn").forEach(btn => {
+      btn.addEventListener("click", () => sendMode(parseInt(btn.dataset.modo)));
+    });
+    corInput.addEventListener("input", e => { applyColor(e.target.value); sendColor(e.target.value); sendMode(4); });
+    swatch.addEventListener("click", () => corInput.click());
+    slider.addEventListener("input", e => handleIntensity(e.target.value));
+ 
+    applyColor(corInput.value);
+    handleIntensity(slider.value);
+    connectMQTT();
+ 
+    // Alternância de tema
+    const themeToggle = document.getElementById("themeToggle");
+    const body = document.body;
+ 
+    function setTheme(isDark) {
+      if (isDark) {
+        body.classList.add("dark-mode");
+        body.classList.remove("light-mode");
+        themeToggle.innerHTML = "☀️";
+        localStorage.setItem("purpurine-theme", "dark");
+      } else {
+        body.classList.remove("dark-mode");
+        body.classList.add("light-mode");
+        themeToggle.innerHTML = "🌙";
+        localStorage.setItem("purpurine-theme", "light");
+      }
+    }
+ 
+    const savedTheme = localStorage.getItem("purpurine-theme");
+    if (savedTheme === "dark") setTheme(true);
+    else if (savedTheme === "light") setTheme(false);
+    else setTheme(false);
+ 
+    themeToggle.addEventListener("click", () => {
+      setTheme(!body.classList.contains("dark-mode"));
+    });
+ 
+    // Controle dos pop-ups
+    function setupPopup(triggerId, overlayId, closeBtnId) {
+      const trigger = document.getElementById(triggerId);
+      const overlay = document.getElementById(overlayId);
+      const closeBtn = document.getElementById(closeBtnId);
+ 
+      trigger.addEventListener("click", () => {
+        overlay.classList.remove("hidden");
+      });
+ 
+      closeBtn.addEventListener("click", () => {
+        overlay.classList.add("hidden");
+      });
+ 
+      overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) {
+          overlay.classList.add("hidden");
+        }
+      });
+    }
+ 
+    setupPopup("infoToggle", "infoOverlay", "closeInfoPopup");
+    setupPopup("instructionsToggle", "instructionsOverlay", "closeInstructionsPopup");
+  </script>
+</body>
+</html>
+ 
