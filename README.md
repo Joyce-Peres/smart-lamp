@@ -311,6 +311,7 @@ Se as fontes Google não carregarem, verifique a URL do `<link>` no `index.html`
 | **Eláine Gomes Moreira** |
 | **Joyce da Costa Peres** |
 | **Rayssa Alves André** |
+| **Gabrielle Alves** |
 
 </div>
 
