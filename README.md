@@ -63,10 +63,10 @@ O objetivo é oferecer uma experiência agradável e acessível para:
 
 ```mermaid
 graph LR
-	A[Navegador / PWA\nindex.html + mqtt.js] -->|MQTT over WebSocket\nsetMode / setRGB / setBrightness| B[(Broker MQTT)]
-	C[Dispositivo IoT\ncontrolador da lâmpada] -->|Publica sensor| B
-	B -->|/TEF/lamp001/attrs/l\n(luminosidade %)| A
-	B -->|/TEF/lamp001/cmd\n(comandos)| C
+  A["Navegador / PWA<br/>index.html + mqtt.js"] -->|"MQTT over WebSocket<br/>setMode / setRGB / setBrightness"| B[(Broker MQTT)]
+  C["Dispositivo IoT<br/>controlador da lâmpada"] -->|"Publica sensor"| B
+  B -->|"/TEF/lamp001/attrs/l<br/>luminosidade (0-100)"| A
+  B -->|"/TEF/lamp001/cmd<br/>comandos"| C
 ```
 
 </div>
